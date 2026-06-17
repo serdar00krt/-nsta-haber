@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Batman Sonsöz Instagram Yardımcısı</title>
+  
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <!-- Stylesheet -->
+  <link rel="stylesheet" href="style.css">
+  
+  <!-- iOS Meta Tags for Web App feel -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Sonsöz Paylaş">
+</head>
+<body>
+
+  <!-- Background decorative blobs for premium dark UI -->
+  <div class="bg-blob blob-1"></div>
+  <div class="bg-blob blob-2"></div>
+
+  <div class="app-container">
+    <header class="app-header">
+      <div class="logo-area">
+        <div class="logo-icon">
+          <i class="fa-brands fa-instagram"></i>
+        </div>
+        <div>
+          <h1>Sonsöz Instagram Yardımcısı</h1>
+          <p class="subtitle">batmansonsoz.net manşet haberlerini Instagram'da kolayca paylaşın</p>
+        </div>
+      </div>
+      <button id="btn-refresh" class="btn btn-primary btn-round">
+        <i class="fa-solid fa-arrows-rotate"></i> <span>Haberleri Yenile</span>
+      </button>
+    </header>
+
+    <!-- Connection Info/Alert for iOS network access -->
+    <div class="info-banner">
+      <div class="info-icon"><i class="fa-solid fa-mobile-screen-button"></i></div>
+      <div class="info-text">
+        <strong>iPhone/iPad Bağlantısı:</strong> Bu uygulamayı telefonunuzdan açmak için bilgisayarınızla aynı Wi-Fi ağına bağlanın ve tarayıcınıza bilgisayarınızın yerel IP adresini (port 5000 ile, örn: <span id="ip-placeholder">http://IP_ADRESI:5000</span>) girin.
+      </div>
+    </div>
+
+    <!-- Status / Loading Area -->
+    <div id="loader" class="loader-container">
+      <div class="spinner"></div>
+      <p>Manşet haberleri batmansonsoz.net'ten çekiliyor...</p>
+    </div>
+
+    <!-- Error State -->
+    <div id="error-view" class="error-container d-none">
+      <i class="fa-solid fa-triangle-exclamation error-icon"></i>
+      <h3>Haberler Çekilemedi</h3>
+      <p id="error-message">Web sitesine bağlanırken bir sorun oluştu.</p>
+      <button id="btn-retry" class="btn btn-secondary">Yeniden Dene</button>
+    </div>
+
+    <!-- News Grid -->
+    <main id="news-grid" class="news-grid d-none">
+      <!-- News cards will be generated here dynamically -->
+    </main>
+  </div>
+
+  <!-- Story Generator Modal -->
+  <div id="story-modal" class="modal d-none">
+    <div class="modal-backdrop"></div>
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3><i class="fa-solid fa-wand-magic-sparkles"></i> Instagram Hikaye Kartı</h3>
+        <button id="btn-close-modal" class="modal-close-btn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="story-preview-container">
+          <div class="canvas-loading">
+            <div class="spinner"></div>
+            <p>Görsel işleniyor...</p>
+          </div>
+          <!-- Real img tag for iOS long-press saving -->
+          <img id="story-image-preview" class="story-preview-image d-none" alt="Instagram Story Önizleme">
+        </div>
+        
+        <div class="modal-instructions">
+          <p class="ios-only-text"><i class="fa-solid fa-circle-info"></i> <strong>iOS'ta Kaydetme:</strong> Görselin üzerine <strong>basılı tutun</strong> ve çıkan menüden <strong>"Fotoğraflara Ekle"</strong> seçeneğini seçin.</p>
+          <p class="desktop-only-text"><i class="fa-solid fa-circle-info"></i> <strong>Bilgisayarda Kaydetme:</strong> Aşağıdaki "Görseli İndir" butonuna tıklayabilir veya görsele sağ tıklayıp resmi farklı kaydedebilirsiniz.</p>
+        </div>
+      </div>
+      <div class="modal-footer" style="display: flex; flex-direction: column; gap: 10px;">
+        <button id="btn-copy-image" class="btn w-100" style="background: var(--blue-gradient); color: #072a40; font-weight: 700;">
+          <i class="fa-solid fa-copy"></i> 1. Görseli Panoya Kopyala
+        </button>
+        <a id="btn-open-instagram" href="instagram://camera" class="btn btn-primary w-100">
+          <i class="fa-brands fa-instagram"></i> 2. Instagram'ı Aç
+        </a>
+        <button id="btn-download-story" class="btn btn-secondary w-100" style="background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.1);">
+          <i class="fa-solid fa-download"></i> Alternatif: Cihaza İndir (Galeriye Kaydet)
+        </button>
+        <button id="btn-share-story" class="btn btn-secondary w-100 d-none" style="background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.05); font-size: 11px;">
+          <i class="fa-solid fa-share-nodes"></i> Doğrudan Paylaş (HTTPS Gerekir)
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Hidden canvas for rendering the story -->
+  <canvas id="story-canvas" width="1080" height="1920" style="display:none;"></canvas>
+
+  <!-- Toast Notification System -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
