@@ -51,17 +51,77 @@ app.get('/api/headlines', async (req, res) => {
   try {
     const targetUrl = 'https://www.batmansonsoz.net';
     
-    // Fetch HTML
-    const response = await axios.get(targetUrl, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-        'Accept-Language': 'tr,en-US;q=0.7,en;q=0.3'
-      },
-      timeout: 10000
-    });
+    // Fetch HTML with Multi-Proxy Fallback (Bypasses 403 blocks on cloud hosts like Render)
+    let html = '';
+    let fetched = false;
+    
+    // Attempt 1: Direct Fetch
+    try {
+      console.log('Attempting direct fetch...');
+      const response = await axios.get(targetUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+          'Accept-Language': 'tr,en-US;q=0.7,en;q=0.3'
+        },
+        timeout: 4000
+      });
+      html = response.data;
+      fetched = true;
+      console.log('Direct fetch successful!');
+    } catch (err) {
+      console.log(`Direct fetch failed (${err.message}). Trying Allorigins...`);
+    }
 
-    const $ = cheerio.load(response.data);
+    // Attempt 2: Allorigins Proxy
+    if (!fetched) {
+      try {
+        const proxyUrl = 'https://api.allorigins.win/get?url=' + encodeURIComponent(targetUrl);
+        console.log('Fetching via proxy:', proxyUrl);
+        const response = await axios.get(proxyUrl, { timeout: 6000 });
+        if (response.data && response.data.contents) {
+          html = response.data.contents;
+          fetched = true;
+          console.log('Allorigins proxy fetch successful!');
+        }
+      } catch (err) {
+        console.log(`Allorigins proxy failed: ${err.message}. Trying Corsproxy.io...`);
+      }
+    }
+
+    // Attempt 3: Corsproxy.io
+    if (!fetched) {
+      try {
+        const proxyUrl = 'https://corsproxy.io/?' + encodeURIComponent(targetUrl);
+        console.log('Fetching via proxy:', proxyUrl);
+        const response = await axios.get(proxyUrl, { timeout: 6000 });
+        html = response.data;
+        fetched = true;
+        console.log('Corsproxy.io proxy fetch successful!');
+      } catch (err) {
+        console.log(`Corsproxy.io proxy failed: ${err.message}. Trying Codetabs...`);
+      }
+    }
+
+    // Attempt 4: Codetabs Proxy
+    if (!fetched) {
+      try {
+        const proxyUrl = 'https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent(targetUrl);
+        console.log('Fetching via proxy:', proxyUrl);
+        const response = await axios.get(proxyUrl, { timeout: 6000 });
+        html = response.data;
+        fetched = true;
+        console.log('Codetabs proxy fetch successful!');
+      } catch (err) {
+        console.log(`Codetabs proxy failed: ${err.message}`);
+      }
+    }
+
+    if (!fetched) {
+      throw new Error('Haber sitesine doğrudan veya vekil sunucular (proxy) üzerinden bağlanılamadı. Lütfen daha sonra tekrar deneyin.');
+    }
+
+    const $ = cheerio.load(html);
     const headlines = [];
     const seenLinks = new Set();
 
