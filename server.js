@@ -10,7 +10,26 @@ const PORT = process.env.PORT || 5000;
 
 app.use(cors());
 app.use(express.json());
+
+// Serve static files from 'public' first, then root folder (fallback if uploaded directly to root)
 app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(__dirname));
+
+// Explicit route handler for root to prevent 'Cannot GET /' if path mapping behaves unexpectedly
+app.get('/', (req, res) => {
+  const fs = require('fs');
+  const publicPath = path.join(__dirname, 'public', 'index.html');
+  if (fs.existsSync(publicPath)) {
+    return res.sendFile(publicPath);
+  }
+  
+  const rootPath = path.join(__dirname, 'index.html');
+  if (fs.existsSync(rootPath)) {
+    return res.sendFile(rootPath);
+  }
+  
+  res.status(404).send('Hata: index.html dosyası bulunamadı. Lütfen dosyalarınızı doğru yüklediğinizden emin olun.');
+});
 
 // Helper: Get local IP addresses of the machine
 function getLocalIPs() {
