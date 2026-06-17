@@ -1,0 +1,8 @@
+node_modules/
+.DS_Store
+*.log
+swiper_analysis.txt
+inspect_site.py
+check_logo_color.py
+test_api.js
+headlines_extracted.json

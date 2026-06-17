@@ -1,0 +1,16 @@
+{
+  "name": "batman-news-instagram-helper",
+  "version": "1.0.0",
+  "description": "Batman Sonsöz haberlerini Instagram'da kolayca paylaşmak için yardımcı araç",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "axios": "^1.6.8",
+    "cheerio": "^1.0.0-rc.12",
+    "cors": "^2.8.5",
+    "express": "^4.19.2"
+  }
+}
