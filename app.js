@@ -82,12 +82,15 @@ function renderNews(items) {
         <h4 class="news-title" title="${item.title}">${item.title}</h4>
         
         <div class="news-actions">
-          <button class="btn-action btn-action-story" onclick="openStoryModal(${index})">
+          <button class="btn-action btn-action-story" style="grid-column: span 2;" onclick="openStoryModal(${index})">
             <i class="fa-solid fa-wand-magic-sparkles"></i> Story Kartı
           </button>
-          <a class="btn-action btn-action-img" href="/api/proxy-image?url=${encodeURIComponent(item.image)}" download="batmansonsoz_haber_${index+1}.webp" target="_blank">
+          <button class="btn-action btn-action-img" onclick="downloadMainImage(event, ${index})">
             <i class="fa-solid fa-download"></i> Resmi İndir
-          </a>
+          </button>
+          <button class="btn-action btn-action-tags" onclick="copyTagsFromCard(event, ${index})">
+            <i class="fa-brands fa-instagram"></i> Etiketleri Kopyala
+          </button>
           <button class="btn-action btn-action-text" onclick="copyCaption('${encodeURIComponent(captionText)}')">
             <i class="fa-solid fa-copy"></i> Açıklama Kopyala
           </button>
@@ -110,6 +113,52 @@ function copyCaption(encodedText) {
 // Copy link helper
 function copyLink(link) {
   copyToClipboard(link, 'Haber detay linki kopyalandı! Instagram Story Link stickerına yapıştırabilirsiniz.');
+}
+
+// Copy tags directly from a news card
+async function copyTagsFromCard(event, index) {
+  if (event) event.preventDefault();
+  const item = newsItems[index];
+  if (!item) return;
+
+  // Find the button to show a loading state
+  const btn = event.currentTarget || event.target;
+  const originalHtml = btn.innerHTML;
+  
+  btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Yükleniyor...';
+  btn.disabled = true;
+
+  try {
+    const response = await fetch(`/api/extract-tags?url=${encodeURIComponent(item.link)}`);
+    const result = await response.json();
+
+    if (result.success && result.data.length > 0) {
+      const selectedHandles = result.data
+        .filter(tag => tag.isVerified && tag.handle)
+        .map(tag => {
+          let handle = tag.handle.trim();
+          if (!handle.startsWith('@')) {
+            handle = '@' + handle;
+          }
+          return handle;
+        });
+
+      if (selectedHandles.length > 0) {
+        const tagsText = selectedHandles.join(' ');
+        copyToClipboard(tagsText, `Etiketler kopyalandı: ${tagsText}`);
+      } else {
+        showToast('Haberde kayıtlı/onaylı instagram hesabı bulunamadı.');
+      }
+    } else {
+      showToast('Haberde etiketlenecek onaylı hesap bulunamadı.');
+    }
+  } catch (err) {
+    console.error('Etiket kopyalama hatası:', err);
+    showToast('Etiketler alınırken bir hata oluştu.');
+  } finally {
+    btn.innerHTML = originalHtml;
+    btn.disabled = false;
+  }
 }
 
 // Copy to Clipboard Utility
@@ -156,6 +205,73 @@ function fallbackCopyText(text, successMessage) {
   document.body.removeChild(textArea);
 }
 
+// Share or Download Image Helper (optimised for iOS gallery saving)
+async function shareOrDownloadImage(imageUrl, fileName) {
+  // If iOS and navigator.share is available
+  if (isIOS && navigator.share && navigator.canShare) {
+    try {
+      showToast('Galeri için paylaşım paneli açılıyor...');
+      
+      const res = await fetch(imageUrl);
+      const blob = await res.blob();
+      const file = new File([blob], fileName, { type: blob.type || 'image/jpeg' });
+      
+      if (navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          files: [file],
+          title: 'Haber Görseli',
+          text: 'Görseli Galeriye Kaydetmek için "Görseli Kaydet" seçeneğini seçin.'
+        });
+        showToast('Paylaşım paneli açıldı!');
+        return;
+      }
+    } catch (err) {
+      console.error('iOS Paylaşım/Kaydetme Hatası:', err);
+      if (err.name === 'AbortError') {
+        // User closed the share sheet, do nothing
+        return;
+      }
+    }
+  }
+  
+  // Fallback for iOS without share API (like non-HTTPS)
+  if (isIOS) {
+    showToast('iOS Galeri Kısıtlaması: Görsel açılıyor. Kaydetmek için üzerine BASILI TUTUP "Fotoğraflara Ekle" seçeneğini seçin.');
+    setTimeout(() => {
+      // Open in new window/tab so they can long-press save
+      window.open(imageUrl, '_blank');
+    }, 2500);
+    return;
+  }
+  
+  // Standard download for Android / Desktop
+  try {
+    const a = document.createElement('a');
+    a.href = imageUrl;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    showToast('Görsel indirme başlatıldı!');
+  } catch (err) {
+    console.error('İndirme hatası:', err);
+    window.open(imageUrl, '_blank');
+  }
+}
+
+// Download/Share main headline image
+async function downloadMainImage(event, index) {
+  if (event) event.preventDefault();
+  const item = newsItems[index];
+  if (!item) return;
+  
+  // Auto-copy the news link to clipboard so the user has it ready
+  copyToClipboard(item.link, 'Haber linki otomatik kopyalandı! Instagram\'da doğrudan yapıştırabilirsiniz.');
+  
+  const proxyUrl = `/api/proxy-image?url=${encodeURIComponent(item.image)}`;
+  await shareOrDownloadImage(proxyUrl, `batmansonsoz_haber_${index + 1}.jpg`);
+}
+
 // Toast Notification
 function showToast(message) {
   const container = document.getElementById('toast-container');
@@ -174,6 +290,92 @@ function showToast(message) {
   }, 2700);
 }
 
+// Load and Render Instagram Tags for the article
+async function loadInstagramTags(articleUrl) {
+  const copyTagsBtn = document.getElementById('btn-copy-tags');
+  const tagsLoader = document.getElementById('tags-loader');
+  const tagsContainer = document.getElementById('tags-container');
+  const tagsEmpty = document.getElementById('tags-empty');
+
+  // Reset UI states
+  tagsLoader.classList.remove('d-none');
+  tagsContainer.classList.add('d-none');
+  tagsEmpty.classList.add('d-none');
+  copyTagsBtn.classList.add('d-none');
+  tagsContainer.innerHTML = '';
+
+  try {
+    const response = await fetch(`/api/extract-tags?url=${encodeURIComponent(articleUrl)}`);
+    const result = await response.json();
+
+    tagsLoader.classList.add('d-none');
+
+    if (result.success && result.data.length > 0) {
+      tagsContainer.classList.remove('d-none');
+      copyTagsBtn.classList.remove('d-none');
+      
+      result.data.forEach((tag, idx) => {
+        const itemDiv = document.createElement('div');
+        itemDiv.className = 'tag-item';
+        
+        const isChecked = tag.isVerified ? 'checked' : '';
+        const verifiedBadge = tag.isVerified ? '<span class="tag-badge-verified" title="Kayıtlı hesap"><i class="fa-solid fa-circle-check"></i></span>' : '';
+        const searchKeyword = encodeURIComponent(tag.name);
+        
+        itemDiv.innerHTML = `
+          <div class="tag-checkbox-container">
+            <input type="checkbox" id="tag-check-${idx}" class="tag-checkbox" ${isChecked}>
+          </div>
+          <span class="tag-name-label" title="${tag.name}">${tag.name}</span>
+          <div class="tag-input-wrapper">
+            <input type="text" id="tag-input-${idx}" class="tag-input" value="${tag.handle}">
+            ${verifiedBadge}
+          </div>
+          <a class="tag-search-btn" href="https://www.instagram.com/search/top/?q=${searchKeyword}" target="_blank" title="Instagram'da ara">
+            <i class="fa-solid fa-magnifying-glass"></i>
+          </a>
+        `;
+        tagsContainer.appendChild(itemDiv);
+      });
+      
+      // Bind copy tags click event
+      copyTagsBtn.onclick = () => {
+        const selectedHandles = [];
+        tagsContainer.querySelectorAll('.tag-item').forEach((item) => {
+          const checkbox = item.querySelector('.tag-checkbox');
+          const input = item.querySelector('.tag-input');
+          if (checkbox.checked && input.value.trim()) {
+            let handle = input.value.trim();
+            // Ensure starts with @
+            if (!handle.startsWith('@')) {
+              handle = '@' + handle;
+            }
+            selectedHandles.push(handle);
+          }
+        });
+        
+        if (selectedHandles.length > 0) {
+          const tagsText = selectedHandles.join(' ');
+          copyToClipboard(tagsText, 'Seçili Instagram etiketleri kopyalandı! Paylaşırken yapıştırabilirsiniz.');
+        } else {
+          showToast('Lütfen en az bir etiket seçin.');
+        }
+      };
+
+    } else {
+      tagsEmpty.classList.remove('d-none');
+    }
+  } catch (err) {
+    console.error('Tags load error:', err);
+    tagsLoader.classList.add('d-none');
+    tagsEmpty.classList.remove('d-none');
+    const emptySpan = tagsEmpty.querySelector('span');
+    if (emptySpan) {
+      emptySpan.textContent = 'Etiketler yüklenirken hata oluştu.';
+    }
+  }
+}
+
 // Open Story Creator Modal
 function openStoryModal(index) {
   const item = newsItems[index];
@@ -183,11 +385,15 @@ function openStoryModal(index) {
   const downloadBtn = document.getElementById('btn-download-story');
   const shareBtn = document.getElementById('btn-share-story');
   const copyImageBtn = document.getElementById('btn-copy-image');
+  const copyLinkBtn = document.getElementById('btn-modal-copy-link');
   
   // Show Modal & Loader
   modal.classList.remove('d-none');
   previewImg.classList.add('d-none');
   loadingIndicator.classList.remove('d-none');
+  
+  // Load Instagram Tags in background
+  loadInstagramTags(item.link);
   
   // Show/Hide native share button based on browser capability
   const canShareFiles = navigator.share && navigator.canShare;
@@ -215,14 +421,11 @@ function openStoryModal(index) {
       loadingIndicator.classList.add('d-none');
       
       // Set up download button behavior
-      downloadBtn.onclick = () => {
-        const a = document.createElement('a');
-        a.href = dataURL;
-        a.download = `batmansonsoz_story_${index + 1}.jpg`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        showToast('Story görseli indirmesi başlatıldı!');
+      downloadBtn.onclick = async () => {
+        // Auto-copy the news link to clipboard so the user has it ready
+        copyToClipboard(item.link, 'Haber linki otomatik kopyalandı! Instagram\'da doğrudan yapıştırabilirsiniz.');
+        
+        await shareOrDownloadImage(dataURL, `batmansonsoz_story_${index + 1}.jpg`);
       };
 
       // Set up copy image to clipboard behavior (No gallery clutter!)
@@ -247,6 +450,11 @@ function openStoryModal(index) {
           console.error(e);
           showToast('Lütfen üstteki görsele BASILI TUTUP "Kopyala" deyin.');
         }
+      };
+
+      // Set up copy link behavior inside modal
+      copyLinkBtn.onclick = () => {
+        copyLink(item.link);
       };
       
       // Set up native sharing button behavior (Instagram, WhatsApp, etc.)
@@ -295,39 +503,52 @@ function generateStoryCanvas(newsImg, title) {
   // Clear canvas
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   
-  // 1. Draw Blurred Background ( spotify style depth )
-  ctx.save();
-  // We draw the news image scaled up to cover the canvas
-  const scale = Math.max(canvas.width / newsImg.width, canvas.height / newsImg.height);
-  const x = (canvas.width / 2) - (newsImg.width / 2) * scale;
-  const y = (canvas.height / 2) - (newsImg.height / 2) * scale;
-  
-  ctx.drawImage(newsImg, x, y, newsImg.width * scale, newsImg.height * scale);
-  ctx.restore();
-  
-  // Draw semi-transparent dark overlay to ensure readability & blur effect fallback
-  ctx.fillStyle = 'rgba(10, 11, 16, 0.75)';
+  // 1. Draw Solid Dark Gradient Background (Clean and premium dark layout)
+  ctx.fillStyle = '#0a0b10'; // Fallback solid dark
   ctx.fillRect(0, 0, canvas.width, canvas.height);
+  
+  // Premium subtle dark gradient
+  const grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
+  grad.addColorStop(0, '#12131a');
+  grad.addColorStop(1, '#050608');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  
+  // 1.5 Soft brand red glow behind the news image to fill empty space elegantly
+  const glow = ctx.createRadialGradient(
+    canvas.width / 2, canvas.height / 2, 100,
+    canvas.width / 2, canvas.height / 2, 700
+  );
+  glow.addColorStop(0, 'rgba(227, 0, 0, 0.14)'); // Soft red glow
+  glow.addColorStop(1, 'rgba(0, 0, 0, 0)');      // Fades out
+  ctx.fillStyle = glow;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // 1.8 Thin elegant card outer border frame
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
+  ctx.lineWidth = 3;
+  drawRoundedRect(ctx, 40, 40, canvas.width - 80, canvas.height - 80, 40);
+  ctx.stroke();
   
   // 2. Brand Header (Top Area)
   ctx.fillStyle = '#E30000'; // Batman Sonsöz Brand Red
-  ctx.fillRect(80, 100, 16, 45); // Vertical Accent bar
+  ctx.fillRect(80, 110, 16, 45); // Vertical Accent bar
   
   ctx.fillStyle = '#ffffff';
   ctx.font = 'bold 36px "Outfit", sans-serif';
-  ctx.fillText('BATMAN SONSÖZ', 115, 134);
+  ctx.fillText('BATMAN SONSÖZ', 115, 144);
   
-  ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
   ctx.font = '500 24px "Outfit", sans-serif';
-  ctx.fillText('GÜNLÜK MANŞET HABER', 115, 172);
+  ctx.fillText('GÜNLÜK MANŞET HABER', 115, 182);
 
-  // 3. Draw Main News Image (Centered Card)
-  const margin = 80;
-  const imgW = canvas.width - (margin * 2); // 920px
-  const imgH = imgW * (9 / 16); // 517.5px (standard 16:9 aspect ratio)
+  // 3. Draw Main News Image (Larger & Centered)
+  const margin = 50;
+  const imgW = canvas.width - (margin * 2); // 980px
+  const imgH = imgW * (9 / 16); // 551px (standard 16:9 aspect ratio)
   const imgX = margin;
-  const imgY = 280;
-  const imgRadius = 24;
+  const imgY = 360; // Perfectly positioned below header
+  const imgRadius = 28;
   
   // Draw news image with rounded corners
   ctx.save();
@@ -337,102 +558,79 @@ function generateStoryCanvas(newsImg, title) {
   ctx.restore();
   
   // Subtle border around news image
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
-  ctx.lineWidth = 2;
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
+  ctx.lineWidth = 3;
   drawRoundedRect(ctx, imgX, imgY, imgW, imgH, imgRadius);
   ctx.stroke();
 
-  // 4. Draw Glassmorphism Title Card (Bottom Area)
-  const cardX = margin;
-  const cardY = 920; // Moved down from 880 to increase gap from main image slightly
-  const cardW = canvas.width - (margin * 2); // 920px
-  const cardH = 520; // Reduced from 680
-  const cardRadius = 32;
+  // 4. Draw Call To Action Button Placeholder (Directly on blurred background)
+  const ctaW = 560;
+  const ctaH = 90;
+  const ctaX = (canvas.width - ctaW) / 2; // Center horizontally
+  const ctaY = 1180; // Positioned beautifully below the main image
   
-  // Card base fill (Dark premium glass overlay)
+  // Capsule Fill: Dark semi-transparent pill shape
   ctx.fillStyle = 'rgba(18, 20, 32, 0.9)';
   ctx.save();
-  drawRoundedRect(ctx, cardX, cardY, cardW, cardH, cardRadius);
-  // Add premium shadow
-  ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
-  ctx.shadowBlur = 40;
-  ctx.shadowOffsetX = 0;
-  ctx.shadowOffsetY = 15;
-  ctx.fill();
-  ctx.restore();
-  
-  // Card border
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
-  ctx.lineWidth = 2;
-  ctx.save();
-  drawRoundedRect(ctx, cardX, cardY, cardW, cardH, cardRadius);
-  ctx.stroke();
-  ctx.restore();
-  
-  // Badge inside card: "SON DAKİKA" or "ÖNE ÇIKAN"
-  const badgeX = cardX + 50;
-  const badgeY = cardY + 50; // Tighter vertical padding
-  const badgeW = 180;
-  const badgeH = 50;
-  
-  ctx.fillStyle = 'rgba(227, 0, 0, 0.15)'; // Semi-transparent brand red
-  ctx.save();
-  drawRoundedRect(ctx, badgeX, badgeY, badgeW, badgeH, 12);
-  ctx.fill();
-  ctx.restore();
-  
-  ctx.strokeStyle = '#E30000'; // Brand red
-  ctx.lineWidth = 1.5;
-  ctx.save();
-  drawRoundedRect(ctx, badgeX, badgeY, badgeW, badgeH, 12);
-  ctx.stroke();
-  ctx.restore();
-  
-  ctx.fillStyle = '#ffffff';
-  ctx.font = 'bold 22px "Outfit", sans-serif';
-  ctx.textAlign = 'center';
-  ctx.fillText('YENİ HABER 🚨', badgeX + (badgeW / 2), badgeY + 33);
-  ctx.textAlign = 'left'; // Reset alignment
-  
-  // News Title text wrap & draw
-  ctx.fillStyle = '#ffffff';
-  ctx.font = 'bold 38px "Outfit", sans-serif'; // Readable size
-  const textX = cardX + 50;
-  const textY = cardY + 160; // Positioned perfectly below badge
-  const maxTextW = cardW - 100;
-  const lineHeight = 52;
-  
-  wrapText(ctx, title, textX, textY, maxTextW, lineHeight);
-
-  // 5. Draw Call To Action Button Placeholder (For Instagram Link Sticker)
-  const ctaW = 500;
-  const ctaH = 80;
-  const ctaX = cardX + (cardW / 2) - (ctaW / 2); // Center horizontally inside card
-  const ctaY = cardY + 380; // Moved up significantly to close the blank gap
-  
-  // CTA Fill: Translucent background
-  ctx.fillStyle = 'rgba(255, 255, 255, 0.05)';
-  ctx.save();
-  drawRoundedRect(ctx, ctaX, ctaY, ctaW, ctaH, 40); // 40px radius makes it a perfect capsule
+  drawRoundedRect(ctx, ctaX, ctaY, ctaW, ctaH, 45); // 45px radius makes it a perfect capsule
+  // Subtle drop shadow
+  ctx.shadowColor = 'rgba(0, 0, 0, 0.3)';
+  ctx.shadowBlur = 20;
+  ctx.shadowOffsetY = 8;
   ctx.fill();
   ctx.restore();
   
   // Dashed border for sticker placement guide
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
-  ctx.lineWidth = 2;
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
+  ctx.lineWidth = 2.5;
   ctx.save();
   ctx.setLineDash([8, 6]); // Set dash pattern
-  drawRoundedRect(ctx, ctaX, ctaY, ctaW, ctaH, 40);
+  drawRoundedRect(ctx, ctaX, ctaY, ctaW, ctaH, 45);
   ctx.stroke();
   ctx.restore();
   
   // CTA Text
-  ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
-  ctx.font = '500 22px "Outfit", sans-serif';
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
+  ctx.font = 'bold 24px "Outfit", sans-serif';
   ctx.textAlign = 'center';
-  ctx.fillText('🔗 Link Çıkartmasını Buraya Koyun', ctaX + (ctaW / 2), ctaY + 48);
+  ctx.fillText('🔗 Link Çıkartmasını Buraya Koyun', ctaX + (ctaW / 2), ctaY + 54);
   ctx.textAlign = 'left'; // Reset
-  ctx.setLineDash([]); // Reset line dash for other drawings
+  ctx.setLineDash([]); // Reset line dash
+  
+  // 5. Draw Click Animation Cursor (Mouse pointer with click ripples)
+  const cursorX = ctaX + ctaW - 60;
+  const cursorY = ctaY + ctaH / 2 + 10;
+  
+  // Concentric click waves
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(cursorX, cursorY, 15, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+  ctx.beginPath();
+  ctx.arc(cursorX, cursorY, 25, 0, Math.PI * 2);
+  ctx.stroke();
+  
+  // Mouse cursor arrow path
+  ctx.fillStyle = '#ffffff';
+  ctx.strokeStyle = '#14151c';
+  ctx.lineWidth = 3.5;
+  ctx.save();
+  ctx.translate(cursorX, cursorY);
+  ctx.rotate(-Math.PI / 8); // rotated slightly to the left
+  ctx.beginPath();
+  ctx.moveTo(0, 0); // Tip of pointer is at translation origin (cursorX, cursorY)
+  ctx.lineTo(0, 30);
+  ctx.lineTo(8, 22);
+  ctx.lineTo(16, 38);
+  ctx.lineTo(21, 35);
+  ctx.lineTo(13, 19);
+  ctx.lineTo(22, 19);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  ctx.restore();
   
   // 6. Draw Footer Branding
   ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';

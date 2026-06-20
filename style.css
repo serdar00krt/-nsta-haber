@@ -355,6 +355,19 @@ body {
   border-color: var(--brand-color);
 }
 
+/* Instagram Tag Action Button - Soft pink theme */
+.btn-action-tags {
+  border-color: rgba(225, 48, 108, 0.3);
+  background: rgba(225, 48, 108, 0.08);
+  color: #e1306c;
+}
+
+.btn-action-tags:hover {
+  background: #e1306c;
+  color: white;
+  border-color: #e1306c;
+}
+
 /* Modals (Clean Light Layout) */
 .modal {
   position: fixed;
@@ -551,6 +564,199 @@ body.is-ios .desktop-only-text {
 }
 body:not(.is-ios) .ios-only-text {
   display: none !important;
+}
+
+/* Instagram Tags Section Styles */
+.tags-section {
+  width: 100%;
+  background: var(--secondary-btn-bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-sm);
+  padding: 12px;
+  margin-top: 14px;
+}
+
+.tags-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  padding-bottom: 6px;
+}
+
+.tags-header h4 {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tags-header h4 i {
+  color: #c13584; /* Instagram Pink */
+}
+
+.btn-copy-tags-small {
+  background: rgba(227, 0, 0, 0.15);
+  border: 1px solid rgba(227, 0, 0, 0.3);
+  color: var(--brand-color);
+  font-size: 10px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: var(--transition-smooth);
+}
+
+.btn-copy-tags-small:hover {
+  background: var(--brand-color);
+  color: white;
+}
+
+.tags-loader {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 16px 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.spinner-small {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  border-top-color: var(--brand-color);
+  border-radius: 50%;
+  animation: spin 0.8s infinite linear;
+}
+
+.tags-container {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 140px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+/* Custom Scrollbar for Tags Container */
+.tags-container::-webkit-scrollbar {
+  width: 4px;
+}
+.tags-container::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.02);
+}
+.tags-container::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+}
+
+.tag-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  padding: 6px 8px;
+  border-radius: 6px;
+}
+
+.tag-checkbox-container {
+  display: flex;
+  align-items: center;
+}
+
+.tag-checkbox-container input[type="checkbox"] {
+  width: 14px;
+  height: 14px;
+  accent-color: var(--brand-color);
+  cursor: pointer;
+}
+
+.tag-name-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-primary);
+  width: 110px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tag-input-wrapper {
+  flex-grow: 1;
+  display: flex;
+  align-items: center;
+  position: relative;
+}
+
+.tag-input {
+  width: 100%;
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-family: monospace;
+  padding: 4px 6px;
+  border-radius: 4px;
+}
+
+.tag-input:focus {
+  outline: none;
+  border-color: rgba(255, 255, 255, 0.2);
+  color: var(--text-primary);
+}
+
+.tag-badge-verified {
+  color: #1d9bf0; /* Verified color */
+  font-size: 11px;
+  margin-left: 4px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+}
+
+.tag-search-btn {
+  color: var(--text-muted);
+  font-size: 11px;
+  cursor: pointer;
+  transition: var(--transition-smooth);
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.tag-search-btn:hover {
+  color: #c13584; /* Instagram Pink on hover */
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.tags-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 16px 0;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.tags-empty i {
+  font-size: 16px;
+  margin-bottom: 2px;
 }
 
 /* Mobile responsive */
